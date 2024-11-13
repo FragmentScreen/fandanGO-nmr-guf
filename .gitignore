@@ -1,0 +1,6 @@
+.env
+config.yaml
+build
+*.egg-info
+*.sqlite
+__pycache__
