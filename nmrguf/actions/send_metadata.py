@@ -1,4 +1,4 @@
-from nmrguf.db.sqlite_db import get_project_metadata
+from nmrguf.db.sqlite_db import get_project_metadata, get_experiment_metadata_path, get_filtered_library_metadata_path
 from datetime import datetime
 from dotenv import load_dotenv
 import json
@@ -24,21 +24,43 @@ def send_metadata(project_name, visit_id):
     info = None
 
     try:
-        project_metadata = get_project_metadata(project_name)
+        experiment_metadata_path = get_experiment_metadata_path(project_name)
+        filtered_library_metadata_path = get_filtered_library_metadata_path(project_name)
 
         aria = AriaClient(True)
         aria.login()
         today = datetime.today()
         visit = aria.new_data_manager(int(visit_id), 'visit', True)
         embargo_date = datetime(today.year + 3, today.month, today.day).strftime('%Y-%m-%d')
-        bucket = Bucket(visit.entity_id, visit.entity_type, embargo_date)
-        visit.push(bucket)
-        record = visit.create_record(bucket.id, 'TestSchema')
+        bucket = visit.create_bucket(embargo_date)
 
-        for json_path in project_metadata:
-            with open(json_path, 'r') as file:
-                data = json.load(file)
-                field = Field(record.id, 'TestFieldType', data)
+        # experiment metadata
+        with open(experiment_metadata_path, 'r') as file:
+            experiment_metadata = json.load(file)
+
+        for dataset in experiment_metadata['Datasets']:
+            record = visit.create_record(bucket.id, 'TestSchema')
+            field = Field(record.id, 'TestFieldType', dataset)
+            visit.push(field)
+            if not isinstance(field, Field):
+                success = False
+
+        for sample in experiment_metadata['Samples']:
+            record = visit.create_record(bucket.id, 'TestSchema')
+            field = Field(record.id, 'TestFieldType', sample)
+            visit.push(field)
+            if not isinstance(field, Field):
+                success = False
+
+
+        # filtered library data
+        with open(filtered_library_metadata_path, 'r') as file:
+            filtered_library_metadata = json.load(file)
+
+        for mix in filtered_library_metadata:
+            for key in mix.keys():
+                record = visit.create_record(bucket.id, 'TestSchema')
+                field = Field(record.id, 'TestFieldType', mix[key])
                 visit.push(field)
                 if not isinstance(field, Field):
                     success = False
@@ -49,9 +71,7 @@ def send_metadata(project_name, visit_id):
 
     if success:
         print(f'Successfully sent metadata for project {project_name} to ARIA!')
-        info = {'bucket': bucket.__dict__,
-                'record': record.__dict__,
-                'field': field.__dict__}
+        info = {'bucket': bucket.__dict__}
 
     return success, info
 

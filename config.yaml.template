@@ -1,5 +1,5 @@
 [DDBB]
 DDBB_PATH = /home/user/FandanGOUserData
 
-[LOGS]
-PROJECTS_PATH = /home/user/LOGS
+[METADATA]
+OUTPUT_PATH = /home/user/nmr_metadata
