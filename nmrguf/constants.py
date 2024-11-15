@@ -2,7 +2,8 @@
 # Actions (first argument given to FandanGO).
 #
 
-ACTION_GENERATE_METADATA = 'generate-metadata'
+ACTION_GENERATE_LIBRARY_METADATA = 'generate-library-metadata'
+ACTION_GENERATE_EXPERIMENT_METADATA = 'generate-experiment-metadata'
 ACTION_SEND_METADATA = 'send-metadata'
 ACTION_PRINT_PROJECT = 'print-project'
 

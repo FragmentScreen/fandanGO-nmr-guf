@@ -29,7 +29,7 @@ def send_metadata(project_name, visit_id):
         aria = AriaClient(True)
         aria.login()
         today = datetime.today()
-        visit = aria.new_data_manager(visit_id, 'visit', True)
+        visit = aria.new_data_manager(int(visit_id), 'visit', True)
         embargo_date = datetime(today.year + 3, today.month, today.day).strftime('%Y-%m-%d')
         bucket = Bucket(visit.entity_id, visit.entity_type, embargo_date)
         visit.push(bucket)
