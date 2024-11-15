@@ -146,7 +146,7 @@ ping 127.0.0.1 -n 1 >nul
 
 :: create-project
 echo Creating entry in fandango database for project %pname% ... 
-fandango create-project --name %pname% > send-metadata-output.log 2>&1
+fandango_launcher create-project --name %pname% > send-metadata-output.log 2>&1
 if not %ERRORLEVEL% equ 0 (
     echo Error while creating entry in fandango database for project. Exiting with error code %ERRORLEVEL%...
     echo See send-metadata-output.log file for more details.
@@ -155,7 +155,7 @@ if not %ERRORLEVEL% equ 0 (
 
 :: link-project
 echo Linking project %pname% to the fandango-nmr-guf plugin ...
-fandango link-project --name %pname% --plugin fandanGO-nmr-guf >> send-metadata-output.log 2>&1
+fandango_launcher link-project --name %pname% --plugin fandanGO-nmr-guf >> send-metadata-output.log 2>&1
 if not %ERRORLEVEL% equ 0 (
     echo Error while linking project to fandango-nmr-guf plugin. Exiting with error code %ERRORLEVEL%...
     echo See send-metadata-output.log file for more details.
@@ -165,7 +165,7 @@ if not %ERRORLEVEL% equ 0 (
 
 :: action generate-experiment-metadata
 echo Generating experiment metadata from LOGS using LOGS id %logs% ...
-fandango execute --action generate-experiment-metadata --name %pname% --logs-project-id %logs% >> send-metadata-output.log 2>&1
+fandango_launcher execute --action generate-experiment-metadata --name %pname% --logs-project-id %logs% >> send-metadata-output.log 2>&1
 if not %ERRORLEVEL% equ 0 (
     echo Error while generating experiment metadata from LOGS. Exiting with error code %ERRORLEVEL%...
     echo See send-metadata-output.log file for more details.
@@ -175,7 +175,7 @@ if not %ERRORLEVEL% equ 0 (
 
 :: action generate-library-from-excel
 echo Generating library metadata JSON from excel file %excelpath% ...
-fandango execute --action generate-library-from-excel --name %pname% --input %excelpath% >> send-metadata-output.log 2>&1
+fandango_launcher execute --action generate-library-from-excel --name %pname% --input %excelpath% >> send-metadata-output.log 2>&1
 if not %ERRORLEVEL% equ 0 (
     echo Error while generating library metadata JSON from excel file. Exiting with error code %ERRORLEVEL%...
     echo See send-metadata-output.log file for more details.
