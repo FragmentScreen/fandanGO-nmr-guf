@@ -1,0 +1,6 @@
+# Execute Fandango for generating and sending metadata from GUF facility to ARIA API
+Open the windows Command Prompt (CMD) on your windows computer and enter the following line to start sending metadata for a specific project to ARIA API. After this, follow the instructions that the cmd prompts you.
+
+send-metadata-to-aria
+
+  To open the Command Prompt in Windows, click the "Start" button or press the Windows key on your keyboard and type "cmd" or "Command Prompt" into the search bar.
