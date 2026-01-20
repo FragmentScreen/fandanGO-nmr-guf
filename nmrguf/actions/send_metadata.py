@@ -39,15 +39,15 @@ def send_metadata(project_name, visit_id):
             experiment_metadata = json.load(file)
 
         for dataset in experiment_metadata['Datasets']:
-            record = visit.create_record(bucket.id, 'TestSchema')
-            field = Field(record.id, 'TestFieldType', dataset)
+            record = visit.create_record(bucket.id, 'LOGS')
+            field = Field(record.id, 'LOGSDataset', dataset)
             visit.push(field)
             if not isinstance(field, Field):
                 success = False
 
         for sample in experiment_metadata['Samples']:
-            record = visit.create_record(bucket.id, 'TestSchema')
-            field = Field(record.id, 'TestFieldType', sample)
+            record = visit.create_record(bucket.id, 'LOGS')
+            field = Field(record.id, 'LOGSSample', sample)
             visit.push(field)
             if not isinstance(field, Field):
                 success = False
@@ -59,8 +59,8 @@ def send_metadata(project_name, visit_id):
 
         for mix in filtered_library_metadata:
             for key in mix.keys():
-                record = visit.create_record(bucket.id, 'TestSchema')
-                field = Field(record.id, 'TestFieldType', mix[key])
+                record = visit.create_record(bucket.id, 'LOGS')
+                field = Field(record.id, 'LOGSMix', mix[key])
                 visit.push(field)
                 if not isinstance(field, Field):
                     success = False
