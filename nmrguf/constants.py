@@ -2,6 +2,8 @@
 # Actions (first argument given to FandanGO).
 #
 
+ACTION_GET_LOGS_PROJECT_TYPES = 'get-logs-project-types'
+ACTION_GET_LOGS_PROJECTS = 'get-logs-projects-from-types'
 ACTION_GENERATE_EXPERIMENT_METADATA = 'generate-experiment-metadata'
 ACTION_GENERATE_LIBRARY_FROM_EXCEL = 'generate-library-from-excel'
 ACTION_GENERATE_LIBRARY_METADATA = 'generate-library-metadata'
