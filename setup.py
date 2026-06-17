@@ -17,8 +17,8 @@ setup(
     version='0.1.0',
     description='nmr-guf plugin of the FandanGO application',
     long_description=long_description,
-    author='CNB-CSIC, Carolina Simon, Irene Sanchez, Instruct-ERIC, Lui Holliday, Marcus Povey',
-    author_email='carolina.simon@cnb.csic.es, isanchez@cnb.csic.es, lui.holliday@instruct-eric.org, marcus@instruct-eric.org',
+    author='CNB-CSIC, Carolina Simon, Irene Sanchez, Instruct-ERIC, Lui Holliday, Marcus Povey, Marcus Lowndes',
+    author_email='carolina.simon@cnb.csic.es, isanchez@cnb.csic.es, lui.holliday@instruct-eric.org, marcus@instruct-eric.org, marcus.lowndes@instruct-eric.org',
     packages=find_packages(),
     install_requires=[requirements],
     entry_points={
