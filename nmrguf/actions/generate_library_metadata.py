@@ -1,11 +1,12 @@
 import configparser
 import os
 import json
-from nmrguf.db.sqlite_db import update_project, get_library_metadata_path, get_experiment_metadata_path
+import traceback
+from nmrguf.db.sqlite_db import update_project, get_project_value
 
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml'))
-metadata_output_path = config['METADATA'].get('OUTPUT_PATH')
+config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'plugin.cfg'))
+metadata_output_path = config.get(section='METADATA', option='OUTPUT_PATH')
 
 
 def generate_library_metadata(project_name):
@@ -21,15 +22,16 @@ def generate_library_metadata(project_name):
 
     print(f'FandanGO will filter library metadata for FandanGO project {project_name}...')
     success = False
-    info = None
+    info = {}
 
     try:
-        library_metadata_path = get_library_metadata_path(project_name)
-        experiment_metadata_path = get_experiment_metadata_path(project_name)
+        library_metadata_path = get_project_value(project_name, "library_metadata_path")
+        experiment_metadata_path = get_project_value(project_name, "experiment_metadata_path", "")
         mixes = generate_mix_list(experiment_metadata_path)
         filtered_json = filter_json(mixes, library_metadata_path)
 
         filtered_library_metadata_path = os.path.join(metadata_output_path, f'{project_name}_filtered_analyzed_metadata.json')
+        os.makedirs(os.path.dirname(filtered_library_metadata_path), exist_ok=True)
 
         with open(filtered_library_metadata_path, 'w') as metadata_file:
             json.dump(filtered_json, metadata_file, indent=4)
@@ -37,9 +39,11 @@ def generate_library_metadata(project_name):
         update_project(project_name, 'filtered_library_metadata_path', filtered_library_metadata_path)
         info = {'filtered_library_metadata_path': filtered_library_metadata_path}
 
-    except Exception as e:
-        info = (f'... Something went wrong: {e}')
+    except Exception:
         success = False
+        info = {'error': f'... LOGS library metadata could not be retrieved for project {project_name}.'}
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
 
     return success, info
 

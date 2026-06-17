@@ -1,17 +1,19 @@
 import configparser
 import os
-from nmrguf.db.sqlite_db import update_project
+import traceback
 import json
 import pandas as pd
+from nmrguf.db.sqlite_db import update_project
 
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml'))
-metadata_output_path = config['METADATA'].get('OUTPUT_PATH')
+config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'plugin.cfg'))
+metadata_output_path = config.get(section='METADATA', option='OUTPUT_PATH')
 
 
 def generate_library_metadata(project_name, input_file):
     """
-    Function that generates metadata for a FandanGO project based on the Excel file with the analyzed data (with fragment library, binding/non-binding summary, protein sequences and cocktails information)
+    Function that generates metadata for a FandanGO project based on the Excel file with the analyzed data
+    (with fragment library, binding/non-binding summary, protein sequences and cocktails information)
 
     Args:
         project_name (str): FandanGO project name
@@ -102,6 +104,7 @@ def generate_library_metadata(project_name, input_file):
         all_mixes = '[' + ','.join(all_mixes) + ']'
 
         library_metadata_path = os.path.join(metadata_output_path, f'{project_name}_analyzed_metadata.json')
+        os.makedirs(os.path.dirname(library_metadata_path), exist_ok=True)
 
         with open(library_metadata_path, 'w') as metadata_file:
             json.dump(json.loads(all_mixes), metadata_file, indent=2)
@@ -110,12 +113,16 @@ def generate_library_metadata(project_name, input_file):
         info = {'library_metadata_path': library_metadata_path}
 
     except ValueError:
-        info = (f'... there was a problem reading the file. Make sure it is an Excel file (.xlsx)')
+        info = ('... there was a problem reading the file. Make sure it is an Excel file (.xlsx)')
         success = False
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
 
     except Exception as e:
         info = (f'... Something went wrong: {e}')
         success = False
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
 
     return success, info
 

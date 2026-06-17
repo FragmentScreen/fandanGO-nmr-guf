@@ -1,93 +1,52 @@
+import os
+import traceback
+from contextlib import contextmanager
 from nmrguf.db.sqlite import connect_to_ddbb, close_connection_to_ddbb
 
 
-def update_project(project_name, key, value):
+@contextmanager
+def db_session(error_message="could not check projects"):
     connection = None
     try:
         connection = connect_to_ddbb()
-        cursor = connection.cursor()
-        cursor.execute('INSERT INTO project_info VALUES (?, ?, ?)', (project_name, key, value))
-        connection.commit()
-        print(f'... project {project_name} updated: "{key}" = "{value}"')
+        yield connection.cursor(), connection
     except Exception as e:
-        print(f'... project could not be updated because of: {e}')
+        print(f'... {error_message} because of: {e}')
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
     finally:
         if connection:
             close_connection_to_ddbb(connection)
 
 
+def update_project(project_name, key, value):
+    with db_session("project could not be updated") as (cursor, connection):
+        cursor.execute('INSERT INTO project_info VALUES (?, ?, ?)', (project_name, key, value))
+        connection.commit()
+        print(f'... project {project_name} updated: "{key}" = "{value}"')
+
+
 def get_project_info(project_name):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        cursor = connection.cursor()
+    with db_session() as (cursor, _):
         cursor.execute('SELECT * FROM project_info WHERE project_name = ?', (project_name,))
         project_info = cursor.fetchall()
         column_names = [columns[0] for columns in cursor.description]
         return column_names, project_info
-    except Exception as e:
-        print(f'... could not check projects because of: {e}')
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
 
 
 def get_project_metadata(project_name):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        cursor = connection.cursor()
-        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND (key = "filtered_library_metadata_path" OR key = "experiment_metadata_path")', (project_name,))
+    with db_session() as (cursor, _):
+        cursor.execute(
+            'SELECT value FROM project_info WHERE project_name = ? AND '
+            '(key = "filtered_library_metadata_path" OR key = "experiment_metadata_path")',
+            (project_name,)
+        )
         project_metadata = cursor.fetchall()
-        project_metadata = [metadata_file[0] for metadata_file in project_metadata]
-        return project_metadata
-    except Exception as e:
-        print(f'... could not check projects because of: {e}')
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
+        return [metadata_file[0] for metadata_file in project_metadata]
 
 
-def get_experiment_metadata_path(project_name):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        cursor = connection.cursor()
-        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND key = "experiment_metadata_path"', (project_name,))
-        experiment_metadata = cursor.fetchone()[0]
-        return experiment_metadata
-    except Exception as e:
-        print(f'... could not check projects because of: {e}')
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
-
-
-def get_library_metadata_path(project_name):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        cursor = connection.cursor()
-        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND key = "library_metadata_path"', (project_name,))
-        library_metadata = cursor.fetchone()[0]
-        return library_metadata
-    except Exception as e:
-        print(f'... could not check projects because of: {e}')
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
-
-
-def get_filtered_library_metadata_path(project_name):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        cursor = connection.cursor()
-        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND key = "filtered_library_metadata_path"', (project_name,))
-        library_metadata = cursor.fetchone()[0]
-        return library_metadata
-    except Exception as e:
-        print(f'... could not check projects because of: {e}')
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
+def get_project_value(project_name, key, default=None):
+    with db_session() as (cursor, _):
+        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND key = ?', (project_name, key))
+        db_result = cursor.fetchone()
+        return db_result[0] if db_result and len(db_result) > 0 else default

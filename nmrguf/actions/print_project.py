@@ -1,5 +1,7 @@
-from nmrguf.db.sqlite_db import get_project_info
+import os
+import traceback
 from tabulate import tabulate
+from nmrguf.db.sqlite_db import get_project_info
 
 def print_project(project_name):
     """
@@ -23,7 +25,9 @@ def print_project(project_name):
         success = True
         info = project_info
     except Exception as e:
-        info = e
+        info = { 'error' : str(e) }
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
     return success, info
 
 

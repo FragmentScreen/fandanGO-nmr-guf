@@ -4,11 +4,14 @@ from nmrguf.constants import DBNAME
 import configparser
 
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml'))
-ddbb_path = config['DDBB'].get('DDBB_PATH')
+config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'plugin.cfg'))
+ddbb_path = config.get(section='DDBB', option='DDBB_PATH')
+
 
 def connect_to_ddbb():
-    connection = sqlite.connect(database=os.path.join(ddbb_path, DBNAME))
+    db_path = os.path.join(ddbb_path, DBNAME)
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    connection = sqlite.connect(database=db_path)
     create_ddbb_data(connection)
     return connection
 

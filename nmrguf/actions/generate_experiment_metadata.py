@@ -1,19 +1,23 @@
 import configparser
 import os
 import json
+import traceback
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-from nmrguf.db.sqlite_db import update_project
 from LOGS import LOGS
 from LOGS.Entities import (
+    Dataset,
+    Project,
+    Sample,
     DatasetRequestParameter,
     ProjectRequestParameter,
-    SampleRequestParameter,
+    SampleRequestParameter
 )
+from nmrguf.db.sqlite_db import update_project
 
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml'))
-metadata_output_path = config['METADATA'].get('OUTPUT_PATH')
+config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'plugin.cfg'))
+metadata_output_path = config.get(section='METADATA', option='OUTPUT_PATH')
 
 load_dotenv()
 
@@ -55,15 +59,19 @@ def generate_experiment_metadata(project_name, logs_project_id):
         }
 
         experiment_metadata_path = os.path.join(metadata_output_path, f'{project_name}_experiment_metadata.json')
+        os.makedirs(os.path.dirname(experiment_metadata_path), exist_ok=True)
+
         with open(experiment_metadata_path, 'w') as metadata_file:
             json.dump(all_data, metadata_file, indent=4)
         success = True
         update_project(project_name, 'experiment_metadata_path', experiment_metadata_path)
         info = {'experiment_metadata_path': experiment_metadata_path}
 
-    except:
-        info = (f'... LOGS metadata could not be retrieved for project with id ({logs_project_id}).')
+    except Exception:
         success = False
+        info = f'... LOGS metadata could not be retrieved for project with id ({logs_project_id}).'
+        if os.getenv('DEV') == 'LOCAL':
+            print(traceback.format_exc())
 
     return success, info
 
@@ -91,26 +99,26 @@ def extract_json_field(data: Any, path: List[Any], default=None) -> Any:
         return default
 
 
-def fetch_projects(logs_session, project_id: int) -> List[Dict[str, Any]]:
+def fetch_projects(logs_session, project_id: int) -> List[Project]:
     """Fetch project details."""
     return logs_session.projects(ProjectRequestParameter(ids=[project_id])).toList()
 
 
-def fetch_samples(logs_session, logproject_ids: List[int]) -> List[Dict[str, Any]]:
+def fetch_samples(logs_session, logproject_ids: List[int]) -> List[Sample]:
     """Fetch sample details."""
     return logs_session.samples(SampleRequestParameter(projectIds=logproject_ids)).toList()
 
 
-def fetch_datasets(logs_session, project_ids: List[int], sample_ids: List[int]) -> List[Dict[str, Any]]:
+def fetch_datasets(logs_session, project_ids: List[int], sample_ids: List[int]) -> List[Dataset]:
     """Fetch dataset details."""
     project_datasets = logs_session.datasets(DatasetRequestParameter(projectIds=project_ids)).toList()
-    sample_datasets = logs_session.datasets(DatasetRequestParameter(sampleIds=sample_ids)).toList()
-    return project_datasets + sample_datasets
+    # sample_datasets = logs_session.datasets(DatasetRequestParameter(sampleIds=sample_ids)).toList()  # datasets cannot be filtered by sample
+    return project_datasets  # + sample_datasets
 
 
-def process_project_data(project: Any) -> Dict[str, Any]:
+def process_project_data(project: Project) -> Dict[str, Any]:
     """Process and format project data."""
-    data = json.loads(project.toJson())
+    data = project.toDict()
     slack = project._slack or {}
 
     return {
@@ -130,11 +138,10 @@ def process_project_data(project: Any) -> Dict[str, Any]:
     }
 
 
-def process_dataset_data(dataset: Any) -> Dict[str, Any]:
+def process_dataset_data(dataset: Dataset) -> Dict[str, Any]:
     """Process and format dataset data."""
     dataset.fetchFull()
-    data = json.loads(dataset.toJson())
-    params = json.loads(str(dataset.parameters).replace("'", "\""))
+    data = dataset.toDict()
 
     return {
         'Acquisition Date': data.get('acquisitionDate'),
@@ -156,13 +163,13 @@ def process_dataset_data(dataset: Any) -> Dict[str, Any]:
         'Source Base Directory': data.get('sourceBaseDirectory'),
         'Source Relative Directory': data.get('sourceRelativeDirectory'),
         'UID': data.get('uid'),
-        'Parameters': params,
+        'Parameters': data.get('parameters'),
     }
 
 
-def process_sample_data(sample: Any) -> Dict[str, Any]:
+def process_sample_data(sample: Sample) -> Dict[str, Any]:
     """Process and format sample data."""
-    data = json.loads(sample.toJson())
+    data = sample.toDict()
 
     return {
         'Created On': data.get('createdOn'),
@@ -175,11 +182,11 @@ def process_sample_data(sample: Any) -> Dict[str, Any]:
         'Prepared By Name': extract_json_field(data, ['preparedBy', 0, 'name']),
         'Sample UID': data.get('uid'),
         'Target Info': {
-            item['name']: item['value']
+            item['name']: item['value'] if 'value' in item else None
             for item in extract_json_field(data, ['customValues', 0, 'content'], [])
         },
         'Buffer Info': {
-            item['name']: item['value']
+            item['name']: item['value'] if 'value' in item else None
             for item in extract_json_field(data, ['customValues', 1, 'content'], [])
         },
     }
