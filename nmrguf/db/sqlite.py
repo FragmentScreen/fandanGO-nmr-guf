@@ -9,9 +9,9 @@ ddbb_path = config.get(section='DDBB', option='DDBB_PATH')
 
 
 def connect_to_ddbb():
-    db_path = os.path.join(ddbb_path, DBNAME)
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    connection = sqlite.connect(database=db_path)
+    db_file = os.path.join(ddbb_path, DBNAME)
+    os.makedirs(os.path.dirname(db_file), exist_ok=True)
+    connection = sqlite.connect(database=db_file)
     create_ddbb_data(connection)
     return connection
 
