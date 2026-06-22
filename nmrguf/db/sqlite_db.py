@@ -1,52 +1,36 @@
 import os
-import traceback
-from contextlib import contextmanager
-from nmrguf.db.sqlite import connect_to_ddbb, close_connection_to_ddbb
+from typing import Tuple, List, Optional
+from nmrguf.constants import DBNAME
+from fGOdb import SQLiteDB, ProjectInfo
 
+def _db_conn() -> ProjectInfo:
+    """Return a connection to the plugin's local project SQLite database."""
+    config_path = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    config_file = os.path.join(config_path, "plugin.cfg")
+    return ProjectInfo(SQLiteDB(config_file, DBNAME))
 
-@contextmanager
-def db_session(error_message="could not check projects"):
-    connection = None
-    try:
-        connection = connect_to_ddbb()
-        yield connection.cursor(), connection
-    except Exception as e:
-        print(f'... {error_message} because of: {e}')
-        if os.getenv('DEV') == 'LOCAL':
-            print(traceback.format_exc())
-    finally:
-        if connection:
-            close_connection_to_ddbb(connection)
+def update_project(project_name: str, key: str, value: str) -> None:
+    """Update a metadata field for a given project."""
+    _db_conn().set(project_name, key, value)
 
+def get_project_info(project_name: str) -> Tuple[List[str], List[Tuple]]:
+    """Return list of metadata fields for a given project.
+    Returns:
+        Tuple[List[str], List[Tuple]]: Column names and list of metadata fields.
+    """
+    return ["key", "value"], _db_conn().list_by_project(project_name)
 
-def update_project(project_name, key, value):
-    with db_session("project could not be updated") as (cursor, connection):
-        cursor.execute('INSERT INTO project_info VALUES (?, ?, ?)', (project_name, key, value))
-        connection.commit()
-        print(f'... project {project_name} updated: "{key}" = "{value}"')
+def get_project_metadata(project_name: str) -> List[Tuple[str, str]]:
+    """Return list of metadata files for a given project.
+    Returns:
+        List[Tuple[str, str]]: Column names and list of metadata files.
+    """
+    return _db_conn().get(
+        project_name,
+        "filtered_library_metadata_path",
+        "experiment_metadata_path",
+        all=True
+    )
 
-
-def get_project_info(project_name):
-    with db_session() as (cursor, _):
-        cursor.execute('SELECT * FROM project_info WHERE project_name = ?', (project_name,))
-        project_info = cursor.fetchall()
-        column_names = [columns[0] for columns in cursor.description]
-        return column_names, project_info
-
-
-def get_project_metadata(project_name):
-    with db_session() as (cursor, _):
-        cursor.execute(
-            'SELECT value FROM project_info WHERE project_name = ? AND '
-            '(key = "filtered_library_metadata_path" OR key = "experiment_metadata_path")',
-            (project_name,)
-        )
-        project_metadata = cursor.fetchall()
-        return [metadata_file[0] for metadata_file in project_metadata]
-
-
-def get_project_value(project_name, key, default=None):
-    with db_session() as (cursor, _):
-        cursor.execute('SELECT value FROM project_info WHERE project_name = ? AND key = ?', (project_name, key))
-        db_result = cursor.fetchone()
-        return db_result[0] if db_result and len(db_result) > 0 else default
+def get_project_value(project_name: str, key: str, default: Optional[str]) -> str:
+    return _db_conn().get(project_name, key) or default
