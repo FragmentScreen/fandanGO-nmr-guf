@@ -1,68 +1,68 @@
-# FandanGO - nmr-guf plugin
+# FandanGO - NMR@GUF plugin
 
 [![OSV Scanner](https://github.com/FragmentScreen/fandanGO-nmr-guf/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/FragmentScreen/fandanGO-nmr-guf/actions/workflows/osv-scanner.yml)
 
-FandanGO plugin designed for NMR facility at GUF university (Frankfurt, Germany).
+FandanGO plugin for the NMR facility at Goethe University Frankfurt (GUF).
 
 ## Installation
 
-Install FandanGO as explained at [https://github.com/FragmentScreen/fandanGO-core](https://github.com/FragmentScreen/fandanGO-core)
+Install FandanGO as explained in the [FandanGO Core documentation](https://github.com/FragmentScreen/fandanGO-core)
 
-Download and install the `fandanGO-nmr-guf` plugin in FandanGO once:
+Install the `fandanGO-nmr-guf` plugin into your FandanGO environment once:
 ```
 git clone https://github.com/FragmentScreen/fandanGO-nmr-guf.git
 
 fandango install-plugin --plugin fandanGO-nmr-guf
 ```
 
-Set up your plugin.cfg and .env files based on their templates.
+Set up your `plugin.cfg` and `.env` files based on the provided templates.
 
 ## Usage
 
-Create FandanGO project:
-```
-fandango create-project --name guf
-```
+1. Create a new FandanGO project:
+   ```
+   fandango create-project --name guf
+   ```
 
-You can check it was created:
-```
-fandango list-projects
-```
-	
-Link this project to the `fandango-nmr-guf`:
-```
-fandango link-project --name guf --plugin fandanGO-nmr-guf
-```
+2. Check it was created:
+   ```
+   fandango list-projects
+   ```
 
-You can check which "actions" can be executed for this project:
-```
-fandango execute --name guf --help
-```
+3. Link this project to the `fandanGO-nmr-guf` plugin:
+   ```
+   fandango link-project --name guf --plugin fandanGO-nmr-guf
+   ```
 
-Generate project metadata from LOGS system (will create `guf_experiment_metadata.json` file):
-```
-fandango execute --name guf --action generate-experiment-metadata --logs-project-id 227
-```
+4. Check which "actions" can be executed for this project:
+   ```
+   fandango execute --name guf --help
+   ```
 
-Generate library metadata for compound 'cocktails' from excel file (will create `guf_analyzed_metadata.json` file):
-```
-fandango execute --name guf --action generate-library-from-excel --input <cocktails>.xlsx
-```
+5. Generate project metadata from LOGS system (will create `guf_experiment_metadata.json` file):
+   ```
+   fandango execute --name guf --action generate-experiment-metadata --logs-project-id 227
+   ```
 
-Generate filtered library metadata (will create `guf_filtered_analyzed_metadata.json` file):
-```
-fandango execute --name guf --action generate-library-metadata
-```
+6. Generate library metadata for compound 'cocktails' from excel file (will create `guf_analyzed_metadata.json` file):
+   ```
+   fandango execute --name guf --action generate-library-from-excel --input <cocktails>.xlsx
+   ```
 
-Check what we have for the FandanGO project:
-```
-fandango execute --name guf --action print-project
-```
+7. Generate filtered library metadata (will create `guf_filtered_analyzed_metadata.json` file):
+   ```
+   fandango execute --name guf --action generate-library-metadata
+   ```
 
-Send the previous files (`guf_experiment_metadata.json` and `guf_filtered_analyzed_metadata.json`) to ARIA (for visit ID 2):
-```
-fandango execute --name guf --action send-metadata --visit-id 2
-```
+8. Inspect our project outputs:
+   ```
+   fandango execute --name guf --action print-project
+   ```
+
+9. Send the previous files (`guf_experiment_metadata.json` and `guf_filtered_analyzed_metadata.json`) to ARIA (e.g. for visit ID 2):
+   ```
+   fandango execute --name guf --action send-metadata --visit-id 2
+   ```
 
 ## Security Scanning
 
