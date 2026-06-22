@@ -20,7 +20,7 @@ Set up your `plugin.cfg` and `.env` files based on the provided templates.
 ## Usage
 
 > [!NOTE]
-> On Windows, you can automate this process using the `utils/windows/run.bat` script. For more information, see [windows.md](utils/windows/windows.md).
+> On Windows, you can automate this process using the `utils/windows/run.bat` script. For more information, see [the Windows readme](utils/windows/README).
 
 
 1. Create a new FandanGO project:
