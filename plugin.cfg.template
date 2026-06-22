@@ -1,5 +1,5 @@
 [DDBB]
-DDBB_PATH=out/fandango_user_data/
+DDBB_PATH = /home/user/FandanGOUserData
 
 [METADATA]
-OUTPUT_PATH=out/nmr_metadata/
+OUTPUT_PATH = /home/user/nmr_metadata
