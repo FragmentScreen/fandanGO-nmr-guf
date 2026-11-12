@@ -2,7 +2,7 @@
 
 [![OSV Scanner](https://github.com/FragmentScreen/fandanGO-nmr-guf/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/FragmentScreen/fandanGO-nmr-guf/actions/workflows/osv-scanner.yml)
 
-FandanGO plugin for the NMR facility at Goethe University Frankfurt (GUF).
+FandanGO plugin for the NMR facility at Goethe University Frankfurt (GUF), automating metadata collection from LOGS and Excel, generating structured JSON files, and transferring metadata to ARIA.
 
 ## Installation
 
