@@ -1,12 +1,23 @@
 import json
 import os
+import re
 import traceback
 from datetime import datetime
 from dotenv import load_dotenv
+from requests.exceptions import HTTPError
 from fGOaria import AriaClient, Field
 from nmrguf.db.sqlite_db import get_project_value
 
 load_dotenv()
+
+
+def _is_permission_error(error):
+    if isinstance(error, HTTPError) and error.response is not None:
+        return error.response.status_code == 403
+    # fGOaria wraps GraphQL errors, including upstream HTTP errors, in Exception.
+    return bool(re.search(r'\b403\b|\bforbidden\b|\bpermission denied\b|\bdo not have permission\b',
+                          str(error), re.IGNORECASE))
+
 
 def send_metadata(project_name, visit_id):
     """
@@ -65,7 +76,7 @@ def send_metadata(project_name, visit_id):
             print(f'Sending experiment dataset {dataset["Automatic Name"]} ...')
             field = Field(record.id, 'JSON_LOGS_Dataset', dataset)
             # print(field.__dict__)
-            visit.push_safe_cli(field)
+            visit.push(field)
             print(f'✓ Experiment dataset field {dataset["Automatic Name"]} created')
             if not isinstance(field, Field):
                 success = False
@@ -74,7 +85,7 @@ def send_metadata(project_name, visit_id):
             print(f'Sending experiment sample {sample["Sample Name"]} ...')
             field = Field(record.id, 'JSON_LOGS_Sample', sample)
             # print(field.__dict__)
-            visit.push_safe_cli(field)
+            visit.push(field)
             print(f'✓ Experiment sample field {sample["Sample Name"]} created')
             if not isinstance(field, Field):
                 success = False
@@ -89,16 +100,22 @@ def send_metadata(project_name, visit_id):
                     print(f'Sending filtered library mix {key} ...')
                     field = Field(record.id, 'JSON_LOGS_Mix', mix[key])
                     # print(field.__dict__)
-                    visit.push_safe_cli(field)
+                    visit.push(field)
                     print(f'✓ Filtered library mix field {key} created')
                     if not isinstance(field, Field):
                         success = False
 
     except Exception as e:
         success = False
-        info = { 'error': str(e) }
-        # if os.getenv('DEV') == 'LOCAL':
-        print(traceback.format_exc())
+        if _is_permission_error(e):
+            info = {'error': (
+                f'ARIA denied permission to upload metadata to visit {visit_id}. '
+                'Use an account with edit access to this visit, choose a visit you can edit, '
+                'or ask an ARIA administrator to grant access.'
+            )}
+        else:
+            info = {'error': str(e)}
+            print(traceback.format_exc())
 
     if success:
         print(f'Successfully sent metadata for project {project_name} to ARIA!')
