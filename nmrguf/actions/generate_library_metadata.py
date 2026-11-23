@@ -25,7 +25,7 @@ def generate_library_metadata(project_name):
     info = {}
 
     try:
-        library_metadata_path = get_project_value(project_name, "library_metadata_path")
+        library_metadata_path = get_project_value(project_name, "library_metadata_path", "")
         experiment_metadata_path = get_project_value(project_name, "experiment_metadata_path", "")
         mixes = generate_mix_list(experiment_metadata_path)
         filtered_json = filter_json(mixes, library_metadata_path)
