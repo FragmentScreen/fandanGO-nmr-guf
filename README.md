@@ -63,7 +63,7 @@ Set up your `plugin.cfg` and `.env` files based on the provided templates.
    fandango execute --name guf --action print-project
    ```
 
-9. Send the previous files (`guf_experiment_metadata.json` and `guf_filtered_analyzed_metadata.json`) to ARIA (e.g. for visit ID 2):
+9. Send the previous files (`guf_experiment_metadata.json` and `guf_filtered_analyzed_metadata.json`) to ARIA in one `JSON_LOGS` field (e.g. for visit ID 2):
    ```
    fandango execute --name guf --action send-metadata --visit-id 2
    ```

@@ -25,7 +25,7 @@ def generate_library_metadata(project_name):
     info = {}
 
     try:
-        library_metadata_path = get_project_value(project_name, "library_metadata_path")
+        library_metadata_path = get_project_value(project_name, "library_metadata_path", "")
         experiment_metadata_path = get_project_value(project_name, "experiment_metadata_path", "")
         mixes = generate_mix_list(experiment_metadata_path)
         filtered_json = filter_json(mixes, library_metadata_path)
@@ -63,8 +63,12 @@ def generate_mix_list(file_path):
 
     mixes = set()
 
-    for dataset in data['Datasets']:
-        mix_name = dataset['Automatic Name'].split('/')[0]
+    datasets = data['datasets'] if data.get('schemaVersion') == 2 else data['Datasets']
+    for dataset in datasets:
+        name = dataset.get('automaticName') or dataset.get('Automatic Name') or dataset.get('name')
+        if not name:
+            raise ValueError('Dataset is missing its name')
+        mix_name = name.split('/')[0]
         mixes.add(mix_name)
 
     return mixes
