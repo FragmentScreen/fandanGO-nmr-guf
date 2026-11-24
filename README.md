@@ -17,6 +17,17 @@ fandango install-plugin --plugin fandanGO-nmr-guf
 
 Set up your `plugin.cfg` and `.env` files based on the provided templates.
 
+The plugin requires `fandanGO-aria==2.2.6`. Update an existing environment with
+`python -m pip install --upgrade fandanGO-aria==2.2.6`. Field uploads use the
+library's `push_safe_cli()` retries, restoring the JSON object before each attempt
+and checking for an already accepted field before retrying.
+
+Experiment exports contain: `projects`, `datasets`,
+`samples`, verified `customTypes` and a `dataQuality` report. Sample references
+resolve to complete sample entries, including shared target, cocktail and
+component samples. All custom-value sections and unit-bearing field labels are
+preserved. Concentrations are not calculated or guessed.
+
 ## Usage
 
 > [!NOTE]
@@ -67,6 +78,63 @@ Set up your `plugin.cfg` and `.env` files based on the provided templates.
    ```
    fandango execute --name guf --action send-metadata --visit-id 2
    ```
+
+   The visit must match the VID in the exported LOGS project. The sender includes
+   the full experiment graph and both analysis products when registered:
+   `analyzedMetadata` from `generate-library-from-excel`, and `libraryAnalysis`
+   from `generate-library-metadata`.
+
+## Incomplete and historical metadata
+
+Generation preserves the available metadata and reports missing references,
+missing scientific values, unsupported types and historical dataset labels in
+`dataQuality.issues`. Historical labels are not rewritten to modern types.
+Unknown concentrations or volumes are never replaced with zero. A transient
+LOGS retrieval failure leaves the previous export file intact.
+
+Uploads reject scientifically incomplete graphs by default. After reviewing the
+quality report, explicitly preserve the available metadata with:
+
+```sh
+fandanGO execute --name guf --action send-metadata --visit-id VISIT_ID --incomplete-policy preserve
+```
+
+This retains the quality report in ARIA; it does not repair missing information.
+
+## LOGS–ARIA links and retries
+
+By default, the sender reads the saved export and only writes to ARIA. It does
+not connect to LOGS or change dataset Notes. Read access is sufficient to
+generate an export.
+
+To explicitly append an ARIA record link to each source dataset's Notes after a
+confirmed upload, configure `ARIA_RECORD_URL_TEMPLATE` from `.env.template` for
+your output service and enable write-back:
+
+```sh
+fandanGO execute --name guf --action send-metadata --visit-id VISIT_ID --write-back-logs yes
+```
+
+This requires a LOGS API key with dataset edit access and an unambiguous writable
+Notes field. Existing notes are preserved. The plugin uses the documented SDK
+custom-field setter and `LOGS.update(dataset)`; it does not invent a write endpoint.
+Do not enable it for production datasets without authorization. Without this
+option, traceability is ARIA → LOGS only; bidirectional links are not claimed.
+
+A local receipt records known bucket, record and field IDs and completed
+backlinks. Retry with unchanged export and analysis files after a partial failure.
+The sender checks an existing record for an identical `JSON_LOGS` field before
+uploading again, covering a lost field response. An unknown bucket or record
+creation outcome requires manual inspection rather than automatically creating a
+duplicate. Concurrent uploads for the same project are not supported. Avoid
+concurrent Notes edits while writing backlinks; there is no cross-system transaction.
+
+ARIA must advertise the `LOGS` schema and `JSON_LOGS` field type. The installed
+`ddapi-record-logs` library contains the base handler but some versions register
+only its specialized variants. Register `LOGSJSONHandler` in the service if it is
+missing. The sender checks capabilities before creating objects and passes a
+Python object to the ARIA SDK, which serializes it exactly once. Configure the
+GraphQL/proxy body limits for the size of a complete metadata graph.
 
 ## Security Scanning
 
