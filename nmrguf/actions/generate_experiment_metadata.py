@@ -1,5 +1,6 @@
 import configparser
 import json
+import logging
 import os
 import tempfile
 
@@ -37,11 +38,16 @@ def generate_experiment_metadata(project_name, logs_project_id):
         with tempfile.NamedTemporaryFile(mode='w', dir=metadata_output_path,
                                          suffix='.json', delete=False) as metadata_file:
             temporary_path = metadata_file.name
-            json.dump(data, metadata_file, indent=4)
+            json.dump(data, metadata_file, indent=4, allow_nan=False)
         os.replace(temporary_path, experiment_metadata_path)
         temporary_path = None
         update_project(project_name, 'experiment_metadata_path', experiment_metadata_path)
-        return True, {'experiment_metadata_path': experiment_metadata_path}
+        quality = data['dataQuality']
+        if quality['issues']:
+            logging.warning('LOGS export has %s data-quality issue(s); see dataQuality in %s',
+                            len(quality['issues']), experiment_metadata_path)
+        return True, {'experiment_metadata_path': experiment_metadata_path,
+                      'complete': quality['complete'], 'issue_count': len(quality['issues'])}
     except Exception as error:
         return False, {'error': f'LOGS metadata could not be generated: {error}'}
     finally:
