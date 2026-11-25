@@ -104,23 +104,61 @@ This retains the quality report in ARIA; it does not repair missing information.
 
 ## LOGS–ARIA links and retries
 
-By default, the sender reads the saved export and only writes to ARIA. It does
-not connect to LOGS or change dataset Notes. Read access is sufficient to
-generate an export.
+There are two separate steps. First, `generate-experiment-metadata` reads the
+experiment information from LOGS and saves a JSON file on your computer. This
+requires a LOGS API key with read access. Later, `send-metadata` reads that saved
+file and uploads its contents to ARIA.
 
-To explicitly append an ARIA record link to each source dataset's Notes after a
-confirmed upload, configure `ARIA_RECORD_URL_TEMPLATE` from `.env.template` for
-your output service and enable write-back:
+A normal upload changes ARIA only:
+
+```sh
+fandanGO execute --name guf --action send-metadata --visit-id VISIT_ID
+```
+
+The uploaded metadata includes links to the original LOGS datasets. Someone
+viewing the metadata in ARIA can therefore follow those links back to LOGS.
+The source datasets in LOGS, including their Notes, stay unchanged. This upload
+does not need LOGS edit permission or a connection to LOGS.
+
+**Write-back means adding a link in the other direction: from LOGS to ARIA.**
+With `--write-back-logs yes`, the plugin also connects to LOGS. After ARIA confirms
+the metadata upload, it appends a line to each exported dataset's Notes:
+
+```text
+ARIA record: <URL of the uploaded ARIA record>
+```
+
+For example, Notes containing `Measured at 298 K` would keep that text and gain
+the ARIA link underneath it. The plugin does not replace the existing Notes or
+change the scientific data. A person opening the dataset in LOGS can then follow
+the new link to its ARIA record. Adding this line is still a change to LOGS, so it
+requires a LOGS API key with edit permission for the affected datasets.
+
+`ARIA_RECORD_URL_TEMPLATE` tells the plugin how to build that ARIA record link.
+Copy the setting from `.env.template` into your `.env` file and set its host to
+your ARIA output website—the website where people view records, rather than the
+GraphQL API endpoint. The plugin fills in placeholders such as `{record_id}`
+using the identifiers returned by ARIA. Then explicitly enable write-back:
 
 ```sh
 fandanGO execute --name guf --action send-metadata --visit-id VISIT_ID --write-back-logs yes
 ```
 
-This requires a LOGS API key with dataset edit access and an unambiguous writable
-Notes field. Existing notes are preserved. The plugin uses the documented SDK
-custom-field setter and `LOGS.update(dataset)`; it does not invent a write endpoint.
-Do not enable it for production datasets without authorization. Without this
-option, traceability is ARIA → LOGS only; bidirectional links are not claimed.
+Replace `VISIT_ID` with the VID in the exported LOGS project. Each dataset also
+needs an unambiguous writable Notes field. If you only want to upload to ARIA and
+leave LOGS unchanged, omit `--write-back-logs yes`. Enable it only when you intend
+and are authorized to add the Notes links. Both upload modes require ARIA edit
+access to the selected visit.
+
+| Command option | Changes in ARIA | Changes in LOGS |
+| --- | --- | --- |
+| No write-back option | Uploads metadata containing LOGS dataset links. | None. |
+| `--write-back-logs yes` | Uploads the same metadata. | Appends the ARIA record link to each source dataset's Notes after upload confirmation. |
+
+The incomplete-data policy is a separate setting. If you have reviewed an
+incomplete export and intend to upload the available metadata, add
+`--incomplete-policy preserve` to either command. It does not grant LOGS edit
+permission or enable write-back.
 
 A local receipt records known bucket, record and field IDs and completed
 backlinks. Retry with unchanged export and analysis files after a partial failure.
