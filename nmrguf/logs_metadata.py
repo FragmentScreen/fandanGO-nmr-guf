@@ -1,7 +1,20 @@
 """Lossless, read-only LOGS metadata graph export.
 
+This script builds the complete project → dataset → measurement → target/cocktail → component hierarchy,
+retrieves referenced samples, preserves scientific values and units, and checks for missing or incorrect information.
+It does not modify LOGS.
+
 Sample references use the API's dataType, not a section index or field label.
 Shared samples are stored once; IDs/UIDs connect the graph, including cycles.
+
+The main flow is:
+build_metadata()
+  → serialize projects and datasets
+  → retrieve referenced samples
+  → verify custom types
+  → audit scientific completeness
+  → validate the resulting graph
+
 """
 
 from collections import deque
@@ -10,12 +23,10 @@ import re
 
 from LOGS.Entities import CustomTypeRequestParameter, SampleRequestParameter
 
-SCHEMA_VERSION = 2
-
-
 # Roles are identified from API type names; IDs and UIDs are retained and verified
 # against the server's definitions rather than substituted from local constants.
 def type_role(entity):
+    """Identify the entity's role from its type name, or return None if unknown."""
     name = ((entity.get('customType') or {}).get('name') or '').strip().casefold()
     name = re.sub(r'[-_\s]+', ' ', name)
     roles = {'instruct eric project': 'project',
@@ -32,6 +43,7 @@ def type_role(entity):
 def custom_fields(entity):
     """Yield fields from every custom-value section, retaining API ordering."""
     def walk(items):
+        """Descend into nested sections and yield their custom fields in order."""
         for item in items or []:
             if item.get('type') == 'CustomField':
                 yield item
@@ -42,6 +54,7 @@ def custom_fields(entity):
 
 
 def custom_value(entity, name):
+    """Return one populated field by exact name, or None; reject ambiguous matches."""
     values = [f.get('value') for f in custom_fields(entity) if f.get('name') == name]
     populated = [v for v in values if v is not None and v != '']
     if len(populated) > 1:
@@ -50,6 +63,7 @@ def custom_value(entity, name):
 
 
 def sample_references(entity):
+    """Yield IDs, UIDs and source field details for valid Sample/SampleArray references."""
     for field in custom_fields(entity):
         if field.get('dataType') not in ('Sample', 'SampleArray'):
             continue
@@ -69,6 +83,11 @@ def sample_references(entity):
 
 
 def serialize_entity(entity, dataset=False):
+    """Fetch metadata and add its LOGS URL, type identity and sample references.
+
+    Datasets fetch additional information. Original custom values and units are
+    preserved; the full custom-type field schema is omitted from each entity.
+    """
     entity.fetch()
     if dataset:
         entity.fetchFull()
@@ -83,6 +102,11 @@ def serialize_entity(entity, dataset=False):
 
 
 def _validate_identity(entity, allow_untyped=False):
+    """Raise if required identity fields are missing.
+
+    Relaxed mode still requires ID, UID and URL, but leaves missing names and
+    custom-type details for the scientific quality report to describe.
+    """
     for key in (('id', 'uid', 'url') if allow_untyped else ('id', 'name', 'uid', 'url')):
         if not entity.get(key):
             raise ValueError(f"LOGS entity {entity.get('id')} is missing {key}")
@@ -92,9 +116,13 @@ def _validate_identity(entity, allow_untyped=False):
 
 
 def build_metadata(logs, projects, datasets):
-    """Resolve all referenced samples, including those outside the project."""
+    """Build the graph, resolve sample references and verify its custom types.
+
+    Cache shared and unavailable samples, including references outside the
+    project. Return available metadata with a quality report; raise on retrieval
+    failures or inconsistent identities rather than inventing missing data.
+    """
     result = {
-        'schemaVersion': SCHEMA_VERSION,
         'projects': [serialize_entity(p) for p in projects],
         'datasets': [serialize_entity(d, dataset=True) for d in datasets],
         'samples': [],
@@ -131,10 +159,15 @@ def build_metadata(logs, projects, datasets):
 
 
 def validate_metadata(data, allow_incomplete=False):
-    """Reject old flattened exports and dangling references before deposition."""
-    if not isinstance(data, dict) or data.get('schemaVersion') != SCHEMA_VERSION:
+    """Check graph structure and identity consistency, then return its quality report.
+
+    Reject old flattened exports, duplicate IDs and inconsistent references.
+    Scientific incompleteness also raises unless allow_incomplete is enabled;
+    that option does not bypass structural or identity checks.
+    """
+    if not isinstance(data, dict) or not all(key in data for key in ('projects', 'datasets', 'samples')):
         raise ValueError('Regenerate experiment metadata with generate-experiment-metadata; '
-                         'a complete LOGS hierarchy (schemaVersion 2) is required')
+                         'a LOGS hierarchy with projects, datasets and samples is required')
     for key in ('projects', 'datasets', 'samples'):
         if not isinstance(data.get(key), list):
             raise ValueError(f'Metadata is missing the {key} list')
@@ -173,7 +206,11 @@ def validate_metadata(data, allow_incomplete=False):
 
 
 def verify_custom_types(logs, data):
-    """Verify every entity's type identity against its authoritative definition."""
+    """Fetch type definitions in one batch and verify entity type names and UIDs.
+
+    Fill abbreviated type identities from LOGS definitions, update the graph's
+    entities, and return the definitions. Conflicting identities raise an error.
+    """
     entities = data['projects'] + data['datasets'] + data['samples']
     ids = sorted({e['customType']['id'] for e in entities if e['customType'].get('id') is not None})
     definitions = logs.customTypes(CustomTypeRequestParameter(ids=ids)).toList()
@@ -194,20 +231,31 @@ def verify_custom_types(logs, data):
 
 
 def _field_name(name):
+    """Normalize a label for comparison without changing exported labels or units."""
     # Normalization is for validation only; never rewrite labels, units or values.
     return re.sub(r'\s+', ' ', re.sub(r'\[[^]]*\]', '', name or '').strip().casefold())
 
 
 def audit_metadata(data):
-    """Describe missing source information, without fabricating values or edges."""
+    """Return completeness and issues for scientific values and sample relationships.
+
+    Check required concentrations, volumes, named references and cocktail sizes.
+    Report historical/unsupported types and missing information without fetching
+    data, calculating concentrations or modifying the supplied graph.
+    """
     issues = []
     samples = {s['id']: s for s in data['samples']}
 
     def issue(entity, code, message, severity='error'):
+        """Record an issue with the affected entity's identity, code and severity."""
         issues.append({'entityId': entity['id'], 'entityUid': entity['uid'],
                        'code': code, 'severity': severity, 'message': message})
 
     def check_reference(entity, refs, label, expected_roles, code):
+        """Require one named reference and verify the resolved sample's role.
+
+        Unavailable destinations are reported separately as unresolved samples.
+        """
         # Validate the named preparation slot, not an unrelated edge elsewhere
         # in the graph. This keeps Component N paired with Component N Volume.
         matches = [r for r in refs if _field_name(r.get('fieldName')) == _field_name(label)]

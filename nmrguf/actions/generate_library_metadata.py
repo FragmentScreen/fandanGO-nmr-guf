@@ -63,7 +63,7 @@ def generate_mix_list(file_path):
 
     mixes = set()
 
-    datasets = data['datasets'] if data.get('schemaVersion') == 2 else data['Datasets']
+    datasets = data['datasets'] if 'datasets' in data else data['Datasets']
     for dataset in datasets:
         name = dataset.get('automaticName') or dataset.get('Automatic Name') or dataset.get('name')
         if not name:

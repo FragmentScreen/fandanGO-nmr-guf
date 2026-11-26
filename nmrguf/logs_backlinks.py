@@ -1,4 +1,14 @@
-"""Explicitly enabled LOGS write-back using the LOGS-Py entity update API."""
+"""
+Explicitly enabled LOGS write-back using the LOGS-Py entity update API.
+
+This script handles adding ARIA links to LOGS.
+
+After a successful upload, it can append the ARIA record URL to each source dataset’s Notes.
+It checks identity and edit permissions, preserves existing Notes, and avoids adding the same link twice.
+It's used only when you explicitly pass:
+`--write-back-logs yes`
+
+"""
 from LOGS.Entities import DatasetRequestParameter
 
 from nmrguf.logs_metadata import custom_fields
