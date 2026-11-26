@@ -1,198 +1,60 @@
 import configparser
-import os
 import json
-import traceback
-from typing import List, Dict, Any
+import logging
+import os
+import tempfile
+
 from dotenv import load_dotenv
 from LOGS import LOGS
-from LOGS.Entities import (
-    Dataset,
-    Project,
-    Sample,
-    DatasetRequestParameter,
-    ProjectRequestParameter,
-    SampleRequestParameter
-)
+from LOGS.Entities import DatasetRequestParameter, ProjectRequestParameter
+
 from nmrguf.db.sqlite_db import update_project
+from nmrguf.logs_metadata import build_metadata
 
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'plugin.cfg'))
 metadata_output_path = config.get(section='METADATA', option='OUTPUT_PATH')
-
 load_dotenv()
-
-logs_url = os.getenv('LOGS_URL')
-api_key = os.getenv('API_KEY')
 
 
 def generate_experiment_metadata(project_name, logs_project_id):
-    """
-    Function that generates metadata for a FandanGO project based on LOGS information
-
-    Args:
-        project_name (str): FandanGO project name
-        logs_project_id (int): LOGS project id
-    Returns:
-        success (bool): if everything went ok or not
-        info (dict): info metadata path
-    """
-
-    print(f'FandanGO will create metadata for FandanGO project {project_name} from LOGS for project with id {logs_project_id}...')
-    success = False
-    info = None
-
+    """Export a complete LOGS graph, preserving custom fields and sample links."""
+    print(f'FandanGO will create metadata for FandanGO project {project_name} '
+          f'from LOGS for project with id {logs_project_id}...')
+    temporary_path = None
     try:
-        logs = LOGS(url=logs_url, apiKey=api_key)
+        logs = LOGS(url=os.getenv('LOGS_URL'), apiKey=os.getenv('API_KEY'))
+        project_id = int(logs_project_id)
+        projects = logs.projects(ProjectRequestParameter(ids=[project_id])).toList()
+        if len(projects) != 1 or projects[0].id != project_id:
+            raise ValueError(f'LOGS project {project_id} was not found')
+        datasets = logs.datasets(DatasetRequestParameter(projectIds=[project_id])).toList()
+        data = build_metadata(logs, projects, datasets)
 
-        projects = fetch_projects(logs, logs_project_id)
-        project_ids = [p.id for p in projects]
-
-        samples = fetch_samples(logs, project_ids)
-        sample_ids = [s.id for s in samples]
-
-        datasets = fetch_datasets(logs, project_ids, sample_ids)
-
-        all_data = {
-            'Project': [process_project_data(p) for p in projects],
-            'Datasets': [process_dataset_data(d) for d in datasets],
-            'Samples': [process_sample_data(s) for s in samples],
-        }
-
-        experiment_metadata_path = os.path.join(metadata_output_path, f'{project_name}_experiment_metadata.json')
-        os.makedirs(os.path.dirname(experiment_metadata_path), exist_ok=True)
-
-        with open(experiment_metadata_path, 'w') as metadata_file:
-            json.dump(all_data, metadata_file, indent=4)
-        success = True
+        # Do not replace a previous usable export with a partial graph or JSON.
+        os.makedirs(metadata_output_path, exist_ok=True)
+        experiment_metadata_path = os.path.join(
+            metadata_output_path, f'{project_name}_experiment_metadata.json')
+        with tempfile.NamedTemporaryFile(mode='w', dir=metadata_output_path,
+                                         suffix='.json', delete=False) as metadata_file:
+            temporary_path = metadata_file.name
+            json.dump(data, metadata_file, indent=4, allow_nan=False)
+        os.replace(temporary_path, experiment_metadata_path)
+        temporary_path = None
         update_project(project_name, 'experiment_metadata_path', experiment_metadata_path)
-        info = {'experiment_metadata_path': experiment_metadata_path}
-
-    except Exception:
-        success = False
-        info = f'... LOGS metadata could not be retrieved for project with id ({logs_project_id}).'
-        if os.getenv('DEV') == 'LOCAL':
-            print(traceback.format_exc())
-
-    return success, info
-
-
-def extract_json_field(data: Any, path: List[Any], default=None) -> Any:
-    """
-    Extract nested JSON fields, handling dictionaries and lists in the path.
-    Args:
-        data (Any): The JSON-like data structure (dict or list)
-        path (List[Any]): The keys or indices to navigate
-        default (Any): The value to return if the path is invalid
-    Returns:
-        Any: The extracted value or the default if the path is invalid
-    """
-    try:
-        for key in path:
-            if isinstance(data, list) and isinstance(key, int):
-                data = data[key]
-            elif isinstance(data, dict):
-                data = data.get(key, default)
-            else:
-                return default
-        return data
-    except (IndexError, TypeError):
-        return default
-
-
-def fetch_projects(logs_session, project_id: int) -> List[Project]:
-    """Fetch project details."""
-    return logs_session.projects(ProjectRequestParameter(ids=[project_id])).toList()
-
-
-def fetch_samples(logs_session, logproject_ids: List[int]) -> List[Sample]:
-    """Fetch sample details."""
-    return logs_session.samples(SampleRequestParameter(projectIds=logproject_ids)).toList()
-
-
-def fetch_datasets(logs_session, project_ids: List[int], sample_ids: List[int]) -> List[Dataset]:
-    """Fetch dataset details."""
-    project_datasets = logs_session.datasets(DatasetRequestParameter(projectIds=project_ids)).toList()
-    # sample_datasets = logs_session.datasets(DatasetRequestParameter(sampleIds=sample_ids)).toList()  # datasets cannot be filtered by sample
-    return project_datasets  # + sample_datasets
-
-
-def process_project_data(project: Project) -> Dict[str, Any]:
-    """Process and format project data."""
-    data = project.toDict()
-    slack = project._slack or {}
-
-    return {
-        'Created On': data.get('createdOn'),
-        'Project ID': data.get('id'),
-        'Project Name': data.get('name'),
-        'Project Notes': data.get('notes'),
-        'Owner Name': extract_json_field(data, ['owner', 'name']),
-        'Dataset Count': extract_json_field(data, ['relations', 'datasets', 'count'], 0),
-        'Sample Count': extract_json_field(data, ['relations', 'samples', 'count'], 0),
-        'Project UID': data.get('uid'),
-        'Custom Type': extract_json_field(slack, ['customType', 'name']),
-        'Custom Values': {
-            item['name']: item['value']
-            for item in slack.get('customValues', [{}])[0].get('content', [])
-        },
-    }
-
-
-def process_dataset_data(dataset: Dataset) -> Dict[str, Any]:
-    """Process and format dataset data."""
-    dataset.fetchFull()
-    data = dataset.toDict()
-
-    return {
-        'Acquisition Date': data.get('acquisitionDate'),
-        'Automatic Name': data.get('automaticName'),
-        'Claimed': data.get('claimed'),
-        'Created On': data.get('createdOn'),
-        'Format ID': extract_json_field(data, ['format', 'id']),
-        'Format Name': extract_json_field(data, ['format', 'name']),
-        'Record ID': data.get('id'),
-        'Instrument Name': extract_json_field(data, ['instrument', 'name']),
-        'Method Name': extract_json_field(data, ['method', 'name']),
-        'Record Name': data.get('name'),
-        'Notes': data.get('notes'),
-        'Operator Name': extract_json_field(data, ['operators', 0, 'name']),
-        'Project ID': extract_json_field(data, ['projects', 0, 'id']),
-        'Project Name': extract_json_field(data, ['projects', 0, 'name']),
-        'Project UID': extract_json_field(data, ['projects', 0, 'uid']),
-        'Source': data.get('source'),
-        'Source Base Directory': data.get('sourceBaseDirectory'),
-        'Source Relative Directory': data.get('sourceRelativeDirectory'),
-        'UID': data.get('uid'),
-        'Parameters': data.get('parameters'),
-    }
-
-
-def process_sample_data(sample: Sample) -> Dict[str, Any]:
-    """Process and format sample data."""
-    data = sample.toDict()
-
-    return {
-        'Created On': data.get('createdOn'),
-        'Custom Type ID': extract_json_field(data, ['customType', 'id']),
-        'Custom Type Name': extract_json_field(data, ['customType', 'name']),
-        'Custom Type UID': extract_json_field(data, ['customType', 'uid']),
-        'Sample ID': data.get('id'),
-        'Sample Name': data.get('name'),
-        'Sample Notes': data.get('notes'),
-        'Prepared By Name': extract_json_field(data, ['preparedBy', 0, 'name']),
-        'Sample UID': data.get('uid'),
-        'Target Info': {
-            item['name']: item['value'] if 'value' in item else None
-            for item in extract_json_field(data, ['customValues', 0, 'content'], [])
-        },
-        'Buffer Info': {
-            item['name']: item['value'] if 'value' in item else None
-            for item in extract_json_field(data, ['customValues', 1, 'content'], [])
-        },
-    }
+        quality = data['dataQuality']
+        if quality['issues']:
+            logging.warning('LOGS export has %s data-quality issue(s); see dataQuality in %s',
+                            len(quality['issues']), experiment_metadata_path)
+        return True, {'experiment_metadata_path': experiment_metadata_path,
+                      'complete': quality['complete'], 'issue_count': len(quality['issues'])}
+    except Exception as error:
+        return False, {'error': f'LOGS metadata could not be generated: {error}'}
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
 
 
 def perform_action(args):
     success, info = generate_experiment_metadata(args['name'], args['logs_project_id'])
-    results = {'success': success, 'info': info}
-    return results
+    return {'success': success, 'info': info}

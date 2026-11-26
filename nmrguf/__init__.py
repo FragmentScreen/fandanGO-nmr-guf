@@ -76,6 +76,16 @@ class Plugin(core.Plugin):
                 'visit-id': {
                     'help': 'ARIA visit id',
                     'required': True
+                },
+                'incomplete-policy': {
+                    'help': 'reject incomplete scientific metadata (default), or explicitly preserve available data',
+                    'choices': ['reject', 'preserve'],
+                    'required': False
+                },
+                'write-back-logs': {
+                    'help': 'explicitly append the deposited record URL to LOGS Notes (default: no)',
+                    'choices': ['yes', 'no'],
+                    'required': False
                 }
             }
         })

@@ -63,8 +63,12 @@ def generate_mix_list(file_path):
 
     mixes = set()
 
-    for dataset in data['Datasets']:
-        mix_name = dataset['Automatic Name'].split('/')[0]
+    datasets = data['datasets'] if 'datasets' in data else data['Datasets']
+    for dataset in datasets:
+        name = dataset.get('automaticName') or dataset.get('Automatic Name') or dataset.get('name')
+        if not name:
+            raise ValueError('Dataset is missing its name')
+        mix_name = name.split('/')[0]
         mixes.add(mix_name)
 
     return mixes
